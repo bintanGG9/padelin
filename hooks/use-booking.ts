@@ -56,7 +56,11 @@ export function useBooking(timeSlots: string[]) {
       
       // SEBELUMNYA: data.map((b) => b.booking_time)
       // SEKARANG: Kirim object utuh agar TimeGrid tahu durasi/harganya masing-masing
-      if (data) setBookedSlots(data);   
+      if (data) {
+        // ⚡ PERBAIKAN: Ubah data object dari database menjadi array string jam saja
+        const slotsOnly = data.map((b: any) => b.booking_time);
+        setBookedSlots(slotsOnly);   
+      } 
     };
     
     fetchBookedSlots();
