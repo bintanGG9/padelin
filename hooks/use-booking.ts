@@ -75,9 +75,11 @@ export function useBooking(timeSlots: string[]) {
     const formattedDate = format(selectedDate, "yyyy-MM-dd");
 
     const currentIndex = timeSlots.indexOf(selectedTime);
-    const slotsNeeded = totalDuration / 30; // Menghitung berapa kotak/slot grid yang harus dimakan
+    const slotsNeeded = totalDuration / 30; 
     
+    // ⚡ PASTIKAN ADA STRING[] DI SINI SEPERTI DI BAWAH:
     const requiredSlots: string[] = [];
+    
     for (let i = 0; i < slotsNeeded; i++) {
       if (timeSlots[currentIndex + i]) {
         requiredSlots.push(timeSlots[currentIndex + i]);
