@@ -1,21 +1,22 @@
-// ⚡ 1. Paksa rute ini menjadi dinamis agar dilewati saat proses build Vercel
-export const dynamic = "force-dynamic";
-
+// 1. HAPUS baris force-dynamic yang tadi bikin eror static export
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 // @ts-ignore
 import midtransClient from "midtrans-client";
 
-// ⚡ 2. Berikan fallback/string cadangan agar Supabase SDK tidak melempar eror saat build
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-service-role-key"
-);
+// 2. Gunakan fungsi pembungkus (Lazy Initialization) agar Supabase client 
+// HANYA dibuat ketika ada webhook masuk (saat runtime), bukan saat aplikasi sedang di-build statis.
+const getSupabaseClient = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-key";
+  return createClient(url, serviceKey);
+};
 
+// Inisialisasi Snap Midtrans (aman jika variabel kosong saat build statis)
 const snap = new midtransClient.Snap({
   isProduction: false,
-  serverKey: process.env.MIDTRANS_SERVER_KEY,
-  clientKey: process.env.NEXT_PUBLIC_TRANS_CLIENT_KEY,
+  serverKey: process.env.MIDTRANS_SERVER_KEY || "placeholder",
+  clientKey: process.env.NEXT_PUBLIC_TRANS_CLIENT_KEY || "placeholder",
 });
 
 export async function POST(request: Request) {
@@ -23,22 +24,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log("[Webhook] Data masuk dari Midtrans:", body);
 
-    // Validasi notifikasi resmi dari Midtrans
     const statusResponse = await snap.transaction.notification(body);
     const orderId = statusResponse.order_id;
     const transactionStatus = statusResponse.transaction_status;
     const fraudStatus = statusResponse.fraud_status;
 
-    console.log(`[Webhook] Memproses Order ID: ${orderId} dengan Status: ${transactionStatus}`);
-
-    // ⚡ EKSTRAKSI ID: Ubah "PADEL-24-1782936882432" menjadi angka "24"
     let bookingId = orderId;
     if (orderId.includes("-")) {
       const parts = orderId.split("-");
-      bookingId = parts[1]; // Mengambil indeks ke-1 yaitu angka ID aslinya
+      bookingId = parts[1];
     }
 
-    // Tentukan status berdasarkan respon Midtrans
     let bookingStatus = "PENDING";
     if (transactionStatus === "capture" && fraudStatus === "accept") {
       bookingStatus = "PAID";
@@ -50,7 +46,9 @@ export async function POST(request: Request) {
 
     console.log(`[Webhook] Mengupdate Booking ID: ${bookingId} menjadi status: ${bookingStatus}`);
 
-    // ⚡ UPDATE DATABASE SUPABASE
+    // 3. Panggil client Supabase di sini menggunakan fungsi pembungkus tadi
+    const supabase = getSupabaseClient();
+
     const { error } = await supabase
       .from("bookings")
       .update({ status: bookingStatus })
@@ -68,4 +66,9 @@ export async function POST(request: Request) {
     console.error("[Webhook Fatal Error]:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+// 4. Tambahkan ini agar compiler Next.js mengizinkan file ini masuk dalam kompilasi static export tanpa eror
+export async function generateStaticParams() {
+  return [];
 }
