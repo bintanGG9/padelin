@@ -1,18 +1,21 @@
+// ⚡ 1. Paksa rute ini menjadi dinamis agar dilewati saat proses build Vercel
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 // @ts-ignore
 import midtransClient from "midtrans-client";
 
-// DI SINI TEMPATNYA: Menggunakan Service Role Key agar bisa bypass RLS Supabase
+// ⚡ 2. Berikan fallback/string cadangan agar Supabase SDK tidak melempar eror saat build
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-service-role-key"
 );
 
 const snap = new midtransClient.Snap({
   isProduction: false,
   serverKey: process.env.MIDTRANS_SERVER_KEY,
-  clientKey: process.env.NEXT_PUBLIC_TRANS_CLIENT_KEY, // Jika di client-side menggunakan NEXT_PUBLIC_
+  clientKey: process.env.NEXT_PUBLIC_TRANS_CLIENT_KEY,
 });
 
 export async function POST(request: Request) {
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from("bookings")
       .update({ status: bookingStatus })
-      .eq("id", bookingId); // Pastikan nama kolom ID kamu di Supabase adalah 'id'
+      .eq("id", bookingId);
 
     if (error) {
       console.error("[Webhook] Gagal update database Supabase:", error);
