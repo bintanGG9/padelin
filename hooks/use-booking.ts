@@ -5,7 +5,7 @@ import { format, startOfToday } from "date-fns";
 import { supabase } from "@/lib/supabase";
 
 // Tarif dasar per 30 menit (1 slot waktu di grid = 30 menit)
-export const PRICE_PER_30_MIN = 135000; // Contoh: Paket 90 menit (3 slot) = Rp 405.000
+export const PRICE_PER_30_MIN = 135000; 
 
 export function useBooking(timeSlots: string[]) {
   const [isMounted, setIsMounted] = useState(false);
@@ -14,9 +14,8 @@ export function useBooking(timeSlots: string[]) {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>("");
 
-  // STATE BARU SESUAI GAMBAR UI
-  const [mainDuration, setMainDuration] = useState<number>(90); // Default paket 90 Menit
-  const [isExtraTime, setIsExtraTime] = useState<boolean>(false); // Toggle +30 Menit Extra
+  const [mainDuration, setMainDuration] = useState<number>(90); 
+  const [isExtraTime, setIsExtraTime] = useState<boolean>(false); 
 
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
@@ -27,10 +26,7 @@ export function useBooking(timeSlots: string[]) {
   const [userPhone, setUserPhone] = useState("");
   const [editingBookingId, setEditingBookingId] = useState<number | null>(null);
 
-  // HITUNG TOTAL MENIT AKTIF
   const totalDuration = mainDuration + (isExtraTime ? 30 : 0);
-
-  // HITUNG HARGA DINAMIS BERDASARKAN TOTAL DURASI
   const currentBookingPrice = (totalDuration / 30) * PRICE_PER_30_MIN;
 
   useEffect(() => {
@@ -43,21 +39,18 @@ export function useBooking(timeSlots: string[]) {
     return () => clearInterval(timer);
   }, []);
 
-  // READ ACTION (Fetch Booking Terdaftar)
+  // READ ACTION
   useEffect(() => {
     if (!isMounted) return;
     
     const fetchBookedSlots = async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("booking_time, total_price") // <-- AMBIL JUGA total_price ATAU duration UNTUK MENGHITUNG SLOT
+        .select("booking_time, total_price")
         .eq("booking_date", format(selectedDate, "yyyy-MM-dd"))
         .eq("court_name", selectedCourt);
       
-      // SEBELUMNYA: data.map((b) => b.booking_time)
-      // SEKARANG: Kirim object utuh agar TimeGrid tahu durasi/harganya masing-masing
       if (data) {
-        // ⚡ PERBAIKAN: Ubah data object dari database menjadi array string jam saja
         const slotsOnly = data.map((b: any) => b.booking_time);
         setBookedSlots(slotsOnly);   
       } 
@@ -67,7 +60,7 @@ export function useBooking(timeSlots: string[]) {
     if (!editingBookingId) setSelectedTime(null);
   }, [selectedDate, selectedCourt, isMounted, editingBookingId]);
 
-  // CREATE / UPDATE ACTION
+  // CREATE / UPDATE ACTION INTEGRASI MIDTRANS
   const handleSaveBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTime || !userName || !userPhone) return;
@@ -76,8 +69,6 @@ export function useBooking(timeSlots: string[]) {
 
     const currentIndex = timeSlots.indexOf(selectedTime);
     const slotsNeeded = totalDuration / 30; 
-    
-    // ⚡ PASTIKAN ADA STRING[] DI SINI SEPERTI DI BAWAH:
     const requiredSlots: string[] = [];
     
     for (let i = 0; i < slotsNeeded; i++) {
@@ -92,7 +83,6 @@ export function useBooking(timeSlots: string[]) {
       return;
     }
 
-    // Deteksi bentrok jadwal
     const isOverlap = bookedSlots.some((bookedTime) => requiredSlots.includes(bookedTime));
 
     if (isOverlap && !editingBookingId) {
@@ -101,33 +91,96 @@ export function useBooking(timeSlots: string[]) {
       return;
     }
 
-    if (editingBookingId) {
-      const { error } = await supabase.from("bookings").update({
-        booking_date: formattedDate, booking_time: selectedTime, court_name: selectedCourt, user_name: userName, user_phone: userPhone, total_price: currentBookingPrice
-      }).eq("id", editingBookingId);
+    try {
+      if (editingBookingId) {
+        // Logika Update (Jika admin mengedit data)
+        const { error } = await supabase.from("bookings").update({
+          booking_date: formattedDate, booking_time: selectedTime, court_name: selectedCourt, user_name: userName, user_phone: userPhone, total_price: currentBookingPrice
+        }).eq("id", editingBookingId);
 
-      if (!error) {
-        const updated = myBookings.map(b => b.id === editingBookingId ? { 
-          id: editingBookingId, booking_date: formattedDate, booking_time: selectedTime, court_name: selectedCourt, user_name: userName, user_phone: userPhone, total_price: currentBookingPrice 
-        } : b);
-        setMyBookings(updated);
-        localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
-        alert("Booking diperbarui!");
+        if (!error) {
+          const updated = myBookings.map(b => b.id === editingBookingId ? { 
+            id: editingBookingId, booking_date: formattedDate, booking_time: selectedTime, court_name: selectedCourt, user_name: userName, user_phone: userPhone, total_price: currentBookingPrice 
+          } : b);
+          setMyBookings(updated);
+          localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
+          alert("Booking diperbarui!");
+          setShowForm(false);
+          setEditingBookingId(null);
+        }
+      } else { 
+        // ⚡ 1. SIMPAN DATA KE SUPABASE DENGAN STATUS DEFAULT "PENDING"
+        const { data, error } = await supabase.from("bookings").insert([
+          { 
+            booking_date: formattedDate, 
+            booking_time: selectedTime, 
+            court_name: selectedCourt, 
+            user_name: userName, 
+            user_phone: userPhone, 
+            total_price: currentBookingPrice,
+            status: "PENDING" // Pastikan kolom ini ada di Supabase kamu
+          }
+        ]).select();
+      
+        if (error) throw new Error(error.message);
+
+        if (data && data.length > 0) {
+          const createdBooking = data[0];
+
+          // ⚡ 2. REKUES TOKEN DARI ENDPOINT BACKEND API NEXT.JS
+          const res = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bookingId: createdBooking.id,
+              totalPrice: currentBookingPrice,
+              userName: userName,
+              userPhone: userPhone,
+            }),
+          });
+
+          const checkoutData = await res.json();
+          if (!res.ok) throw new Error(checkoutData.error || "Gagal mendapatkan token kasir.");
+
+          // ⚡ 3. PANGGIL KASIR POP-UP MIDTRANS SNAP
+          if (window.snap) {
+            window.snap.pay(checkoutData.token, {
+              onSuccess: function (result: any) {
+                alert("Pembayaran Terverifikasi! Jadwal bermain Anda telah aman.");
+                const updated = [...myBookings, { ...createdBooking, status: "PAID" }];
+                setMyBookings(updated);
+                localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
+                setShowForm(false);
+              },
+              onPending: function (result: any) {
+                alert("Pesanan disimpan! Silakan selesaikan pembayaran pada instruksi tagihan.");
+                const updated = [...myBookings, createdBooking];
+                setMyBookings(updated);
+                localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
+                setShowForm(false);
+              },
+              onError: function (result: any) {
+                alert("Sistem pembayaran error. Silakan hubungi admin lapangan.");
+              },
+              onClose: function () {
+                alert("Anda membatalkan proses checkout kasir.");
+                // Tetap simpan sebagai riwayat tertunda
+                const updated = [...myBookings, createdBooking];
+                setMyBookings(updated);
+                localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
+                setShowForm(false);
+              }
+            });
+          } else {
+            alert("Sistem gagal memuat modul payment gateway. Silakan segarkan halaman.");
+          }
+        }
       }
-    } else { 
-      const { data, error } = await supabase.from("bookings").insert([
-        { booking_date: formattedDate, booking_time: selectedTime, court_name: selectedCourt, user_name: userName, user_phone: userPhone, total_price: currentBookingPrice }
-      ]).select();
-    
-      if (data) {
-        alert("Booking lapangan disimpan!");
-        const updated = [...myBookings, data[0]];
-        setMyBookings(updated);
-        localStorage.setItem("my_padel_bookings", JSON.stringify(updated));
-      }
+    } catch (err: any) {
+      alert(`Terjadi Kendala: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false); setShowForm(false); setEditingBookingId(null);
   };
 
   const handleDeleteBooking = async (id: number) => {

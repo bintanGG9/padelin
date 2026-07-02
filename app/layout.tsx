@@ -1,8 +1,9 @@
 // app/layout.tsx
 import { Unbounded } from "next/font/google"; 
-import "./globals.css"; // Sesuaikan dengan path CSS utama kamu
+import "./globals.css"; 
+// 1. IMPORT SCRIPT COMPONENT DARI NEXT.JS
+import Script from "next/script";
 
-// 2. DEFINISIKAN VARIABEL FONT DI SINI
 const unbounded = Unbounded({
   subsets: ["latin"],
   variable: "--font-unbounded",
@@ -28,6 +29,13 @@ export default function RootLayout({
         }}
       >
         {children}
+
+        {/* 2. SUNTIKKAN SCRIPT SNAP MIDTRANS SANDBOX DI SINI */}
+        <Script
+          src="https://app.sandbox.midtrans.com/snap/snap.js"
+          data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

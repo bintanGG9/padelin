@@ -1,13 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // Memaksa Vercel tetap meloloskan build meskipun ada error TypeScript
-    ignoreBuildErrors: true,
+  output: "export",
+
+  images: {
+    unoptimized: true,
   },
-  eslint: {
-    // Mengabaikan aturan linter ESLint saat build agar cepat online
-    ignoreDuringBuilds: true,
+
+  trailingSlash: true,
+
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
